@@ -1,0 +1,40 @@
+name: Update public routing template
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 19 * * *' # 03:17 Asia/Shanghai
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-routing-template
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Validate and update the public template
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -B -m unittest discover -s tests -v
+          python -B template_sync.py
+          python -B validate_core.py
+      - name: Publish only a validated, changed template
+        run: |
+          if git diff --quiet -- template.yaml; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- template.yaml
+          git commit -m 'Update public routing template'
+          git push
